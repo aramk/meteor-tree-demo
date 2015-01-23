@@ -1,15 +1,38 @@
 schema = new SimpleSchema
   name:
-    label: 'Name'
     type: String
+    index: true
+  parent:
+    type: String
+    index: true
+    optional: true
 
-@Animals = new Meteor.Collection('animals')
-Animals.attachSchema(schema)
-Animals.allow(Collections.allowAll())
+@Locations = new Meteor.Collection('locations')
+Locations.attachSchema(schema)
+Locations.allow(Collections.allowAll())
 
 # Add some sample data
 
 if Meteor.isServer
 
-  _.each ['Dog', 'Cat', 'Mouse'], (name) ->
-    Animals.upsert({name: name}, {$set: {name: name}})
+  locations =
+    'Australia':
+      'Victoria':
+        'Melbourne': {}
+        'Geelong': {}
+      'New South Wales':
+        'Sydney': {}
+      'South Australia':
+        'Adelaide': {}
+      'Queensland':
+        'Brisbane': {}
+
+  collection = Locations
+  Objects.traverseValues locations, (parentValue, parentName) ->
+    parentSelector = {name: parentName}
+    result = collection.upsert(parentSelector, {$set: {name: parentName}})
+    parent = collection.findOne(parentSelector)
+    return unless Types.isObject(parentValue)
+    children = Object.keys(parentValue)
+    _.each children, (childName) ->
+      collection.upsert {name: childName}, {$set: {name: childName, parent: parent._id}}

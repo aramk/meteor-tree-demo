@@ -1,1 +1,1 @@
-Meteor.subscribe 'animals'
+Meteor.subscribe 'locations'

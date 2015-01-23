@@ -1,3 +1,3 @@
 Meteor.startup ->
 
-  Meteor.publish 'animals', -> Animals.find()
+  Meteor.publish 'locations', -> Locations.find()
