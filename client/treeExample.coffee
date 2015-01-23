@@ -28,6 +28,26 @@ loadTrees = ->
   @$('#tree2').tree(data: data2)
 
   # Updating the data should update the tree.
+  _.delay(
+    ->
+      collection.insert {name: 'New Zealand'}, (err, result1) ->
+        _.delay(
+          ->
+            collection.insert {name: 'Auckland', parent: result1}, (err, result2) ->
+              _.delay(
+                ->
+                  collection.remove result2, (err, result3) ->
+                    _.delay(
+                      collection.remove result1, (err, result4) ->
+                      3000
+                    )
+                3000
+              )
+          3000
+        )
+    3000
+  )
+
 
 TemplateClass.rendered = ->
   # Delay loading so errors appear in the console.

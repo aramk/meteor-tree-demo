@@ -1,6 +1,6 @@
 <template name="treeExample">
 
-  <h2>Locations</h2>
+  <h2>Locations List</h2>
   <ul>
     {{#each locations}}
       <li>{{name}}</li>
@@ -10,7 +10,10 @@
   <h2>Example tree</h2>
   <div id="tree1"></div>
 
-  <h2>Tree of locations</h2>
+  <h2>Programmatic Tree</h2>
   <div id="tree2"></div>
+
+  <h2>Tree using template</h2>
+  {{> tree items=locations}}
 
 </template>
