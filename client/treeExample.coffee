@@ -9,6 +9,7 @@ loadTrees = ->
 
   data1 = [
     {
+      id: 'abc',
       label: 'node1',
       children: [
         { label: 'child1' },
@@ -16,38 +17,75 @@ loadTrees = ->
       ]
     },
     {
+      id: 'def',
       label: 'node2',
       children: [
         { label: 'child3' }
       ]
     }
   ]
-  @$('#tree1').tree(data: data1)
+  $tree1 = window.$tree1 = @$('#tree1').tree(data: data1)
 
-  data2 = Template.tree.createData(collection)
-  @$('#tree2').tree(data: data2)
-
-  # Updating the data should update the tree.
   _.delay(
     ->
-      collection.insert {name: 'New Zealand'}, (err, result1) ->
-        _.delay(
-          ->
-            collection.insert {name: 'Auckland', parent: result1}, (err, result2) ->
-              _.delay(
-                ->
-                  collection.remove result2, (err, result3) ->
-                    _.delay(
-                      collection.remove result1, (err, result4) ->
-                      3000
-                    )
-                3000
-              )
-          3000
-        )
-    3000
+      node = $tree1.tree('getNodeById', 'abc')
+      $tree1.tree('updateNode', node, {label: 'node1 - updated'})
+
+      # $tree1.tree('loadData', [
+      #   {
+      #     id: 1,
+      #     label: 'node1 - updated'
+      #   }
+      # ])
+    1000
   )
 
+  # window.$tree3 = @$('#tree3 .tree')
+
+  # data2 = Template.tree.createData(collection)
+  # @$('#tree2').tree(data: data2)
+
+  tree4Template = null
+  delay = 1000
+  runTestData = ->
+    window.$tree4 = $tree4 = @$('#tree4')
+    if tree4Template
+      Blaze.remove(tree4Template)
+    tree4Template = Blaze.renderWithData(Template.tree, {items: collection.find()}, $tree4[0])
+
+    # Updating the data should update the tree.
+    _.delay(
+      ->
+        collection.insert {name: 'New Zealand'}, (err, result1) ->
+          _.delay(
+            ->
+              collection.insert {name: 'Auckland', parent: result1}, (err, result2) ->
+                _.delay(
+                  ->
+                    collection.update result1, {name: 'NZ'}, (err, result3) ->
+                      _.delay(
+                        ->
+                          collection.remove result2, (err, result3) ->
+                            _.delay(
+                              -> collection.remove result1, (err, result4) ->
+                              delay
+                            )
+                        delay
+                      )
+                  delay
+                )
+            delay
+          )
+      delay
+    )
+
+  # Runs tests to show reactive changes.
+  runTestData()
+  setInterval runTestData, delay * 6
+
+  # window.go = ->
+  #   runTestData()
+  #   setInterval runTestData, 15000
 
 TemplateClass.rendered = ->
   # Delay loading so errors appear in the console.
