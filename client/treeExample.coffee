@@ -51,7 +51,11 @@ loadTrees = ->
     window.$tree4 = $tree4 = @$('#tree4')
     if tree4Template
       Blaze.remove(tree4Template)
-    tree4Template = Blaze.renderWithData(Template.tree, {items: collection.find()}, $tree4[0])
+    data =
+      items: collection.find()
+      settings:
+        autoExpand: true
+    tree4Template = Blaze.renderWithData(Template.tree, data, $tree4[0])
 
     # Updating the data should update the tree.
     _.delay(
@@ -62,7 +66,10 @@ loadTrees = ->
               collection.insert {name: 'Auckland', parent: result1}, (err, result2) ->
                 _.delay(
                   ->
-                    collection.update result1, {name: 'NZ'}, (err, result3) ->
+                    au = collection.findOne({name: 'Australia'})
+                    collection.update result1, {name: 'NZ', parent: au._id}, (err, result3) ->
+                      $tree = $('.tree', $tree4)
+                      Template.tree.expandNode($tree, result1)
                       _.delay(
                         ->
                           collection.remove result2, (err, result3) ->
