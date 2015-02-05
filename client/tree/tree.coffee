@@ -4,8 +4,8 @@ TemplateClass.created = ->
   data = @data
   items = data.items
   cursor = Collections.getCursor(items)
-  collection = Collections.get(items)
-  @model = data.model ? new TreeModel(collection: collection)
+  @collection = Collections.get(items)
+  @model = data.model ? new TreeModel(collection: @collection)
   # Allow modifying the underlying logic of the tree model.
   _.extend(@model, data.settings)
 
@@ -27,27 +27,37 @@ TemplateClass.rendered = ->
   @autorun ->
     Collections.observe cursor,
       added: (newDoc) ->
-        data = model.docToNodeData(newDoc, {children: false})
         console.log('added', newDoc)
-        parent = model.getParent(newDoc)
-        parentNode = getParentNode($tree, parent)
-        $tree.tree('appendNode', data, parentNode)
+        data = model.docToNodeData(newDoc, {children: false})
+        sortResults = getSortedIndex($tree, newDoc)
+        nextSiblingNode = sortResults.nextSiblingNode
+        if nextSiblingNode
+          $tree.tree('addNodeBefore', data, nextSiblingNode)
+        else
+          $tree.tree('appendNode', data, sortResults.parentNode)
+
       changed: (newDoc, oldDoc) ->
-        node = $tree.tree('getNodeById', newDoc._id)
+        console.log('changed', newDoc, oldDoc)
+        node = getNode($tree, newDoc._id)
         # Only get one level of children and find their nodes. Children in deeper levels will be
         # updated by their own parents.
         data = model.docToNodeData(newDoc, {children: false})
         childDocs = model.getChildren(newDoc)
         data.children = _.map childDocs, (childDoc) ->
-          $tree.tree('getNodeById', childDoc._id)
+          getNode($tree, childDoc._id)
         $tree.tree('updateNode', node, data)
-        console.log('changed', newDoc, oldDoc)
         parent = newDoc.parent
         if parent != oldDoc.parent
-          parentNode = getParentNode($tree, parent)
-          $tree.tree('moveNode', node, parentNode, 'inside')
+          sortResults = getSortedIndex($tree, newDoc)
+          nextSiblingNode = sortResults.nextSiblingNode
+          if nextSiblingNode
+            $tree.tree('moveNode', node, nextSiblingNode, 'before')
+          else
+            $tree.tree('moveNode', node, sortResults.parentNode, 'inside')
+
       removed: (oldDoc) ->
-        node = $tree.tree('getNodeById', oldDoc._id)
+        console.log('removed', oldDoc)
+        node = getNode($tree, oldDoc._id)
         $tree.tree('removeNode', node)
 
 ####################################################################################################
@@ -55,12 +65,12 @@ TemplateClass.rendered = ->
 ####################################################################################################
 
 getDomNode = (template) ->
-  unless !template then throw new Error('No template provided')
+  unless template then throw new Error('No template provided')
   template.find('.tree')
 
 getTemplate = (domNode) ->
-  unless !domNode then throw new Error('No domNode provided')
   domNode = $(domNode)[0]
+  unless domNode then throw new Error('No domNode provided')
   Blaze.getView(domNode).templateInstance()
 
 getSettings = (domNode) -> getTemplate(domNode).data.settings ? {}
@@ -79,6 +89,34 @@ expandNode = ($tree, id) -> $tree.tree('openNode', getNode($tree, id))
 
 collapseNode = ($tree, id) -> $tree.tree('closeNode', getNode($tree, id))
 
+getSortedIndex = ($tree, doc) ->
+  template = getTemplate($tree)
+  $tree = template.$tree
+  model = template.model
+  collection = template.collection
+  parent = model.getParent(doc)
+  parentNode = getParentNode($tree, parent)
+  # This array will include the doc itself.
+  siblings = model.getChildren(collection.findOne(parent))
+  siblings.sort(model.compareDocs)
+  maxIndex = siblings.length - 1
+  sortedIndex = maxIndex
+  _.some siblings, (sibling, i) ->
+    if sibling._id == doc._id
+      sortedIndex = i
+  if siblings.length > 1 && sortedIndex != maxIndex
+    nextSiblingDoc = siblings[sortedIndex + 1]
+    nextSiblingNode = getNode($tree, nextSiblingDoc._id)
+    # $tree.tree('addNodeBefore', data, nextSiblingNode)
+  # else
+    # $tree.tree('appendNode', data, parentNode)
+  result =
+    siblings: siblings
+    maxIndex: maxIndex
+    sortedIndex: sortedIndex
+    nextSiblingNode: nextSiblingNode
+    parentNode: parentNode
+
 ####################################################################################################
 ## MODEL
 ####################################################################################################
@@ -91,7 +129,9 @@ class TreeModel
       throw new Error('No collection provided when creating tree data')
   
   getChildren: (doc) ->
-    children = @collection.find({parent: doc._id}).fetch()
+    # Search for root document if doc is undefined
+    id = doc?._id ? null
+    children = @collection.find({parent: id}).fetch()
     children.sort(@compareDocs)
     children
   

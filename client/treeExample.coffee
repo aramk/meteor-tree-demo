@@ -67,7 +67,7 @@ loadTrees = ->
                 _.delay(
                   ->
                     au = collection.findOne({name: 'Australia'})
-                    collection.update result1, {name: 'NZ', parent: au._id}, (err, result3) ->
+                    collection.update result1, {name: 'New Zealand!', parent: au._id}, (err, result3) ->
                       $tree = $('.tree', $tree4)
                       Template.tree.expandNode($tree, result1)
                       _.delay(
