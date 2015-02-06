@@ -11,7 +11,7 @@ loadTrees = ->
   delay = 1000
   reactiveSelectionHandle = null
 
-  runTestData = ->
+  window.runTestData = runTestData = ->
     window.$tree4 = $tree4 = @$('#tree4')
     if tree4Template
       Blaze.remove(tree4Template)
@@ -22,6 +22,10 @@ loadTrees = ->
         multiSelect: true
         selectable: true
         checkboxes: true
+        onCreate: -> console.log('onCreate', arguments)
+        onEdit: -> console.log('onEdit', arguments)
+        # onDelete: -> console.log('onDelete', arguments)
+
     # tree4Template = Blaze.renderWithData(Template.tree, data, $tree4[0])
     tree4Template = Blaze.renderWithData(Template.crudTree, data, $tree4[0])
     $tree = $('.tree', $tree4)

@@ -29,6 +29,7 @@ if Meteor.isServer
         'Brisbane': {}
 
   collection = Locations
+  Collections.removeAllDocs(collection)
   Objects.traverseValues locations, (parentValue, parentName) ->
     parentSelector = {name: parentName}
     result = collection.upsert(parentSelector, {$set: {name: parentName}})
