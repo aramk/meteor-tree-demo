@@ -58,12 +58,19 @@ loadTrees = ->
       settings:
         autoExpand: true
         multiSelect: true
+        selectable: true
+        checkboxes: true
     tree4Template = Blaze.renderWithData(Template.tree, data, $tree4[0])
     $tree = $('.tree', $tree4)
+
+    # Listen to selections and checks.
     reactiveSelectionHandle = Tracker.autorun ->
       selectedIds = Template.tree.getSelectedIds($tree)
       # selectedIds = selection.get()
       console.log('selectedIds', selectedIds)
+
+    $tree.on 'check', (e, args) ->
+      console.log('check', args)
 
     # Updating the data should update the tree.
     _.delay(

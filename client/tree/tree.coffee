@@ -1,6 +1,7 @@
 templateName = 'tree'
 TemplateClass = Template[templateName]
 selectEventName = 'select'
+checkEventName = 'check'
 
 TemplateClass.created = ->
   data = @data
@@ -24,7 +25,10 @@ TemplateClass.rendered = ->
   model = @model
   docs = Collections.getItems(items)
   treeData = model.docsToNodeData(docs)
-  $tree.tree(data: treeData, autoOpen: settings.autoExpand)
+  treeArgs = {data: treeData, autoOpen: settings.autoExpand, selectable: settings.selectable}
+  if settings.checkboxes
+    treeArgs.onCreateLi = onCreateNode.bind(null, @)
+  $tree.tree(treeArgs)
 
   @autorun ->
 
@@ -61,6 +65,11 @@ TemplateClass.rendered = ->
         node = getNode($tree, id)
         removeSelection($tree, [id])
         $tree.tree('removeNode', node)
+
+TemplateClass.destory = ->
+  _.each @checkboxes, ($checkbox) ->
+    # Remove bound events.
+    $checkbox.off()
 
 TemplateClass.events
   'tree.select .tree': (e, template) -> handleSelectionEvent(e, template)
@@ -129,65 +138,44 @@ class SelectionModel
     {deselectedIds: toDeselectIds, newSelectedIds: newSelectedIds}
 
 setSelectedIds = (domNode, ids) ->
+  return unless isSelectable(domNode)
   result = getTemplate(domNode).selection.setSelectedIds(ids)
   handleSelectionResult(domNode, result)
 
 getSelectedIds = (domNode) -> getTemplate(domNode).selection.getSelectedIds()
 
 deselectAll = (domNode) ->
+  return unless isSelectable(domNode)
   selectedIds = getTemplate(domNode).selection.deselectAll()
   handleSelectionResult(domNode, {selectedIds: selectedIds})
 
 toggleSelection = (domNode, ids) ->
+  return unless isSelectable(domNode)
   result = getTemplate(domNode).selection.toggleSelection(ids)
   handleSelectionResult(domNode, result)
 
 addSelection = (domNode, ids) ->
+  return unless isSelectable(domNode)
   $tree = getTreeElement(domNode)
   result = getTemplate(domNode).selection.addSelection(ids)
   handleSelectionResult(domNode, result)
-  # $tree.trigger(selectEventName, {selected: toSelectIds})
+  $tree.trigger(selectEventName, result)
 
 removeSelection = (domNode, ids) ->
+  return unless isSelectable(domNode)
   $tree = getTreeElement(domNode)
   result = getTemplate(domNode).selection.removeSelection(ids)
   handleSelectionResult(domNode, result)
-  # $tree.trigger(selectEventName, {deselected: toSelectIds})
+  $tree.trigger(selectEventName, result)
 
 handleSelectionResult = (domNode, result) ->
   $tree = getTreeElement(domNode)
   _.each result.selectedIds, (id) -> _selectNode($tree, id)
   _.each result.deselectedIds, (id) -> _deselectNode($tree, id)
 
-# getReactiveSelection = (domNode) -> getTemplate(domNode).selection.selectedIds
+selectNode = (domNode, id) -> addSelection(domNode, [id])
 
-# These use jqTree's own selection model directly.
-
-# setSelectedIds = ($tree, ids) ->
-#   deselectAll($tree)
-#   _.each ids, (id) -> $tree.tree('addToSelection', getNode($tree, id))
-
-# getSelectedIds = ($tree) ->
-#   nodes = $tree.tree('getSelectedNodes')
-#   _.map nodes, (node) -> node.id
-
-# deselectAll = ($tree) -> removeSelection($tree, getSelectedIds(domNode))
-
-# # toggleSelection = (domNode, ids) -> getTemplate(domNode).selection.toggleSelection(ids)
-
-# addSelection = ($tree, ids) ->
-#   _.each ids, (id) -> selectNode($tree, id)
-
-# removeSelection = ($tree, ids) ->
-#   _.each ids, (id) -> deselectNode($tree, id)
-
-selectNode = (domNode, id) ->
-  console.log('selectNode', arguments)
-  addSelection(domNode, [id])
-
-deselectNode = (domNode, id) ->
-  console.log('deselectNode', arguments)
-  removeSelection(domNode, [id])
+deselectNode = (domNode, id) -> removeSelection(domNode, [id])
 
 _selectNode = (domNode, id) ->
   $tree = getTreeElement(domNode)
@@ -212,6 +200,7 @@ handleSelectionEvent = (e, template) ->
     deselectNode($tree, deselectedNode.id)
 
 handleClickEvent = (e, template) ->
+  return unless isSelectable(template)
   $tree = template.$tree
   multiSelect = template.selection.multiSelect
   selectedNode = e.node
@@ -225,6 +214,29 @@ handleClickEvent = (e, template) ->
     else
       selectNode($tree, selectedId)
 
+isSelectable = (template) -> getSettings(template).selectable
+
+####################################################################################################
+# CHECKBOXES
+####################################################################################################
+
+onCreateNode = (template, node, $em) ->
+  $tree = template.$tree
+  settings = getSettings(template)
+  checkboxes = template.checkboxes ?= []
+  if settings.checkboxes
+    $title = $('.jqtree-title', $em)
+    $checkbox = $('<input type="checkbox" />')
+    $title.before($checkbox)
+    checkboxes.push($checkbox)
+    $checkbox.on 'click', (e) -> e.stopPropagation()
+    $checkbox.on 'change', ->
+      checkEvent = {}
+      isChecked = $checkbox.is(':checked')
+      checkEvent[if isChecked then 'checked' else 'unchecked'] = [node.id]
+      $tree.trigger(checkEventName, checkEvent)
+  console.log('onCreateNode', arguments)
+
 ####################################################################################################
 # AUXILIARY
 ####################################################################################################
@@ -233,15 +245,17 @@ getDomNode = (template) ->
   unless template then throw new Error('No template provided')
   template.find('.tree')
 
-getTemplate = (domNode) ->
-  domNode = $(domNode)[0]
-  if domNode
-    Blaze.getView(domNode).templateInstance()
+getTemplate = (arg) ->
+  if arg instanceof Blaze.TemplateInstance
+    template = arg
   else
-    try
-      Templates.getNamedInstance(templateName)
-    catch err
-      throw new Error('No domNode provided')
+    domNode = $(arg)[0]
+    if domNode
+      return Blaze.getView(domNode).templateInstance()
+  try
+    Templates.getNamedInstance(templateName, template)
+  catch err
+    throw new Error('No domNode provided')
 
 getTreeElement = (domNode) ->
   domNode = $(domNode)[0]
@@ -251,7 +265,16 @@ getTreeElement = (domNode) ->
     throw new Error('No template could be found.')
   template.$tree
 
-getSettings = (domNode) -> getTemplate(domNode).data.settings ? {}
+getSettings = (arg) ->
+  template = getTemplate(arg)
+  unless template.settings
+    template.settings = _.extend({
+      autoExpand: true
+      multiSelect: false
+      selectable: true
+      checkboxes: false
+    }, template.data.settings)
+  template.settings
 
 ####################################################################################################
 # NODES
@@ -361,5 +384,4 @@ _.extend(TemplateClass, {
   addSelection: addSelection
   removeSelection: removeSelection
   isNodeSelected: isNodeSelected
-  # getReactiveSelection: getReactiveSelection
 })
