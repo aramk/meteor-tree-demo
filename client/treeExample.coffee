@@ -70,8 +70,11 @@ loadTrees = ->
                     collection.update result1, {name: 'New Zealand!', parent: au._id}, (err, result3) ->
                       $tree = $('.tree', $tree4)
                       Template.tree.expandNode($tree, result1)
+                      Template.tree.selectNode($tree, result1)
+                      Template.tree.selectNode($tree, result2)
                       _.delay(
                         ->
+                          Template.tree.deselectNode($tree, result1)
                           collection.remove result2, (err, result3) ->
                             _.delay(
                               -> collection.remove result1, (err, result4) ->

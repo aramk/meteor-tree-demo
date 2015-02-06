@@ -1,11 +1,15 @@
-TemplateClass = Template.tree
+templateName = 'tree'
+TemplateClass = Template[templateName]
+selectEventName = 'select'
 
 TemplateClass.created = ->
   data = @data
   items = data.items
   cursor = Collections.getCursor(items)
+  settings = getSettings()
   @collection = Collections.get(items)
   @model = data.model ? new TreeModel(collection: @collection)
+  @selection = new SelectionModel(settings)
   # Allow modifying the underlying logic of the tree model.
   _.extend(@model, data.settings)
 
@@ -14,9 +18,7 @@ TemplateClass.rendered = ->
   items = data.items
   cursor = Collections.getCursor(items)
   collection = Collections.get(items)
-  settings = _.extend({
-    collection: collection
-  }, data.settings)
+  settings = getSettings()
 
   $tree = @$tree = @$('.tree')
   model = @model
@@ -61,7 +63,115 @@ TemplateClass.rendered = ->
         $tree.tree('removeNode', node)
 
 ####################################################################################################
-## AUXILIARY
+# EXPANSION
+####################################################################################################
+
+expandNode = ($tree, id) -> $tree.tree('openNode', getNode($tree, id))
+
+collapseNode = ($tree, id) -> $tree.tree('closeNode', getNode($tree, id))
+
+####################################################################################################
+# SELECTION
+####################################################################################################
+
+# A generic class for representing the selection of items.
+class SelectionModel
+
+  constructor: (args) ->
+    args = _.extend({
+      multiSelect: false
+    }, args)
+    @selectedIds = new ReactiveVar([])
+    @multiSelect = args.multiSelect
+
+  setSelectedIds: (ids) ->
+    selectedIds = @getSelectedIds()
+    toDeselectIds = _.difference(selectedIds, ids)
+    toSelectIds = _.difference(ids, selectedIds)
+    @removeSelection(toDeselectIds)
+    @addSelection(toSelectIds)
+    {toDeselectIds: toDeselectIds, toSelectIds: toSelectIds}
+
+  getSelectedIds: -> @selectedIds.get()
+
+  deselectAll: ->
+    selectedIds = @getSelectedIds()
+    @removeSelection(selectedIds)
+    selectedIds
+
+  toggleSelection: (ids) ->
+    selectedIds = @getSelectedIds()
+    toDeselectIds = _.intersection(selectedIds, ids)
+    toSelectIds = _.difference(ids, selectedIds)
+    @removeSelection(toDeselectIds)
+    @addSelection(toSelectIds)
+
+  addSelection: (ids) ->
+    selectedIds = @getSelectedIds()
+    toSelectIds = _.difference(ids, selectedIds)
+    return if toSelectIds.length == 0
+    newSelectedIds = _.union(selectedIds, toSelectIds)
+    if @multiSelect == false
+      @deselectAll()
+      if newSelectedIds.length > 1
+        newSelectedIds = toSelectIds = [ids[0]]
+    @selectedIds.set(newSelectedIds)
+    {toSelectIds: toSelectIds, newSelectedIds: newSelectedIds}
+
+  removeSelection = (ids) ->
+    selectedIds = @getSelectedIds()
+    toDeselectIds = _.intersection(selectedIds, ids)
+    return if toDeselectIds.length == 0
+    newSelectedIds = _.difference(selectedIds, toDeselectIds)
+    {toDeselectIds: toDeselectIds, newSelectedIds: newSelectedIds}
+
+# setSelectedIds = (domNode, ids) ->
+#   getTemplate(domNode).selection.setSelectedIds(ids)
+
+# getSelectedIds = (domNode) -> getTemplate(domNode).selection.getSelectedIds()
+
+# deselectAll = (domNode) -> getTemplate(domNode).selection.deselectAll()
+
+# toggleSelection = (domNode, ids) -> getTemplate(domNode).selection.toggleSelection(ids)
+
+# addSelection = (domNode, ids) ->
+#   $tree = getTreeElement(domNode)
+#   result = getTemplate(domNode).selection.addSelection(ids)
+#   _.each result.toSelectIds, (id) ->
+#     selectNode($tree, id)
+#   $tree.trigger(selectEventName, {selected: toSelectIds})
+
+# removeSelection = (domNode, ids) ->
+#   $tree = getTreeElement(domNode)
+#   result = getTemplate(domNode).selection.removeSelection(ids)
+#   _.each result.toDeselectIds, (id) ->
+#     deselectNode($tree, id)
+#   $tree.trigger(selectEventName, {deselected: toSelectIds})
+
+setSelectedIds = ($tree, ids) ->
+  deselectAll($tree)
+  _.each ids, (id) -> $tree.tree('addToSelection', getNode($tree, id))
+
+getSelectedIds = ($tree) ->
+  nodes = $tree.tree('getSelectedNodes')
+  _.map nodes, (node) -> node.id
+
+deselectAll = ($tree) -> removeSelection($tree, getSelectedIds(domNode))
+
+# toggleSelection = (domNode, ids) -> getTemplate(domNode).selection.toggleSelection(ids)
+
+addSelection = ($tree, ids) ->
+  _.each ids, (id) -> selectNode($tree, id)
+
+removeSelection = ($tree, ids) ->
+  _.each ids, (id) -> deselectNode($tree, id)
+
+selectNode = ($tree, id) -> $tree.tree('addToSelection', getNode($tree, id))
+
+deselectNode = ($tree, id) -> $tree.tree('removeFromSelection', getNode($tree, id))
+
+####################################################################################################
+# AUXILIARY
 ####################################################################################################
 
 getDomNode = (template) ->
@@ -70,10 +180,25 @@ getDomNode = (template) ->
 
 getTemplate = (domNode) ->
   domNode = $(domNode)[0]
-  unless domNode then throw new Error('No domNode provided')
-  Blaze.getView(domNode).templateInstance()
+  if domNode
+    Blaze.getView(domNode).templateInstance()
+  else
+    try
+      Templates.getNamedInstance(templateName)
+    catch err
+      throw new Error('No domNode provided')
+
+getTreeElement = (domNode) ->
+  template = Templates.getNamedInstance(templateName, Blaze.getView(domNode))
+  unless template
+    throw new Error('No template could be found.')
+  template.$tree
 
 getSettings = (domNode) -> getTemplate(domNode).data.settings ? {}
+
+####################################################################################################
+# NODES
+####################################################################################################
 
 getNode = ($tree, id) -> $tree.tree('getNodeById', id)
 
@@ -84,10 +209,6 @@ getParentNode = ($tree, parent) ->
     getNode($tree, parent)
   else
     getRootNode($tree)
-
-expandNode = ($tree, id) -> $tree.tree('openNode', getNode($tree, id))
-
-collapseNode = ($tree, id) -> $tree.tree('closeNode', getNode($tree, id))
 
 getSortedIndex = ($tree, doc) ->
   template = getTemplate($tree)
@@ -118,7 +239,7 @@ getSortedIndex = ($tree, doc) ->
     parentNode: parentNode
 
 ####################################################################################################
-## MODEL
+# MODEL
 ####################################################################################################
 
 class TreeModel
@@ -166,10 +287,20 @@ class TreeModel
   compareDocs: (docA, docB) ->
     if docA.name < docB.name then -1 else 1
 
-publicProperties =
+####################################################################################################
+# API
+####################################################################################################
+
+_.extend(TemplateClass, {
   getDomNode: getDomNode
   getTemplate: getTemplate
   expandNode: expandNode
   collapseNode: collapseNode
-
-_.extend(TemplateClass, publicProperties)
+  selectNode: selectNode
+  deselectNode: deselectNode
+  setSelectedIds: setSelectedIds
+  getSelectedIds: getSelectedIds
+  deselectAll: deselectAll
+  addSelection: addSelection
+  removeSelection: removeSelection
+})

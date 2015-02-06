@@ -6,6 +6,7 @@
 
 meteor-platform
 coffeescript
+reactive-var
 
 aldeed:collection2
 aramk:utility
