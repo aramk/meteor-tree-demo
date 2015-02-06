@@ -27,9 +27,9 @@ TemplateClass.rendered = ->
   $tree.tree(data: treeData, autoOpen: settings.autoExpand)
 
   @autorun ->
+
     Collections.observe cursor,
       added: (newDoc) ->
-        console.log('added', newDoc)
         data = model.docToNodeData(newDoc, {children: false})
         sortResults = getSortedIndex($tree, newDoc)
         nextSiblingNode = sortResults.nextSiblingNode
@@ -39,7 +39,6 @@ TemplateClass.rendered = ->
           $tree.tree('appendNode', data, sortResults.parentNode)
 
       changed: (newDoc, oldDoc) ->
-        console.log('changed', newDoc, oldDoc)
         node = getNode($tree, newDoc._id)
         # Only get one level of children and find their nodes. Children in deeper levels will be
         # updated by their own parents.
@@ -58,9 +57,14 @@ TemplateClass.rendered = ->
             $tree.tree('moveNode', node, sortResults.parentNode, 'inside')
 
       removed: (oldDoc) ->
-        console.log('removed', oldDoc)
-        node = getNode($tree, oldDoc._id)
+        id = oldDoc._id
+        node = getNode($tree, id)
+        removeSelection($tree, [id])
         $tree.tree('removeNode', node)
+
+TemplateClass.events
+  'tree.select .tree': (e, template) -> handleSelectionEvent(e, template)
+  'tree.click .tree': (e, template) -> handleClickEvent(e, template)
 
 ####################################################################################################
 # EXPANSION
@@ -79,7 +83,7 @@ class SelectionModel
 
   constructor: (args) ->
     args = _.extend({
-      multiSelect: false
+      multiSelect: true
     }, args)
     @selectedIds = new ReactiveVar([])
     @multiSelect = args.multiSelect
@@ -90,7 +94,7 @@ class SelectionModel
     toSelectIds = _.difference(ids, selectedIds)
     @removeSelection(toDeselectIds)
     @addSelection(toSelectIds)
-    {toDeselectIds: toDeselectIds, toSelectIds: toSelectIds}
+    {deselectedIds: toDeselectIds, selectedIds: toSelectIds}
 
   getSelectedIds: -> @selectedIds.get()
 
@@ -103,72 +107,123 @@ class SelectionModel
     selectedIds = @getSelectedIds()
     toDeselectIds = _.intersection(selectedIds, ids)
     toSelectIds = _.difference(ids, selectedIds)
-    @removeSelection(toDeselectIds)
-    @addSelection(toSelectIds)
+    _.extend(@removeSelection(toDeselectIds), @addSelection(toSelectIds))
 
   addSelection: (ids) ->
     selectedIds = @getSelectedIds()
     toSelectIds = _.difference(ids, selectedIds)
-    return if toSelectIds.length == 0
     newSelectedIds = _.union(selectedIds, toSelectIds)
-    if @multiSelect == false
-      @deselectAll()
-      if newSelectedIds.length > 1
-        newSelectedIds = toSelectIds = [ids[0]]
-    @selectedIds.set(newSelectedIds)
-    {toSelectIds: toSelectIds, newSelectedIds: newSelectedIds}
+    if toSelectIds.length > 0
+      if @multiSelect == false
+        @deselectAll()
+        if newSelectedIds.length > 1
+          newSelectedIds = toSelectIds = [ids[0]]
+      @selectedIds.set(newSelectedIds)
+    {selectedIds: toSelectIds, newSelectedIds: newSelectedIds}
 
-  removeSelection = (ids) ->
+  removeSelection: (ids) ->
     selectedIds = @getSelectedIds()
     toDeselectIds = _.intersection(selectedIds, ids)
-    return if toDeselectIds.length == 0
     newSelectedIds = _.difference(selectedIds, toDeselectIds)
-    {toDeselectIds: toDeselectIds, newSelectedIds: newSelectedIds}
+    @selectedIds.set(newSelectedIds)
+    {deselectedIds: toDeselectIds, newSelectedIds: newSelectedIds}
 
-# setSelectedIds = (domNode, ids) ->
-#   getTemplate(domNode).selection.setSelectedIds(ids)
+setSelectedIds = (domNode, ids) ->
+  result = getTemplate(domNode).selection.setSelectedIds(ids)
+  handleSelectionResult(domNode, result)
 
-# getSelectedIds = (domNode) -> getTemplate(domNode).selection.getSelectedIds()
+getSelectedIds = (domNode) -> getTemplate(domNode).selection.getSelectedIds()
 
-# deselectAll = (domNode) -> getTemplate(domNode).selection.deselectAll()
+deselectAll = (domNode) ->
+  selectedIds = getTemplate(domNode).selection.deselectAll()
+  handleSelectionResult(domNode, {selectedIds: selectedIds})
 
-# toggleSelection = (domNode, ids) -> getTemplate(domNode).selection.toggleSelection(ids)
+toggleSelection = (domNode, ids) ->
+  result = getTemplate(domNode).selection.toggleSelection(ids)
+  handleSelectionResult(domNode, result)
 
-# addSelection = (domNode, ids) ->
-#   $tree = getTreeElement(domNode)
-#   result = getTemplate(domNode).selection.addSelection(ids)
-#   _.each result.toSelectIds, (id) ->
-#     selectNode($tree, id)
-#   $tree.trigger(selectEventName, {selected: toSelectIds})
+addSelection = (domNode, ids) ->
+  $tree = getTreeElement(domNode)
+  result = getTemplate(domNode).selection.addSelection(ids)
+  handleSelectionResult(domNode, result)
+  # $tree.trigger(selectEventName, {selected: toSelectIds})
 
-# removeSelection = (domNode, ids) ->
-#   $tree = getTreeElement(domNode)
-#   result = getTemplate(domNode).selection.removeSelection(ids)
-#   _.each result.toDeselectIds, (id) ->
-#     deselectNode($tree, id)
-#   $tree.trigger(selectEventName, {deselected: toSelectIds})
+removeSelection = (domNode, ids) ->
+  $tree = getTreeElement(domNode)
+  result = getTemplate(domNode).selection.removeSelection(ids)
+  handleSelectionResult(domNode, result)
+  # $tree.trigger(selectEventName, {deselected: toSelectIds})
 
-setSelectedIds = ($tree, ids) ->
-  deselectAll($tree)
-  _.each ids, (id) -> $tree.tree('addToSelection', getNode($tree, id))
+handleSelectionResult = (domNode, result) ->
+  $tree = getTreeElement(domNode)
+  _.each result.selectedIds, (id) -> _selectNode($tree, id)
+  _.each result.deselectedIds, (id) -> _deselectNode($tree, id)
 
-getSelectedIds = ($tree) ->
-  nodes = $tree.tree('getSelectedNodes')
-  _.map nodes, (node) -> node.id
+# getReactiveSelection = (domNode) -> getTemplate(domNode).selection.selectedIds
 
-deselectAll = ($tree) -> removeSelection($tree, getSelectedIds(domNode))
+# These use jqTree's own selection model directly.
 
-# toggleSelection = (domNode, ids) -> getTemplate(domNode).selection.toggleSelection(ids)
+# setSelectedIds = ($tree, ids) ->
+#   deselectAll($tree)
+#   _.each ids, (id) -> $tree.tree('addToSelection', getNode($tree, id))
 
-addSelection = ($tree, ids) ->
-  _.each ids, (id) -> selectNode($tree, id)
+# getSelectedIds = ($tree) ->
+#   nodes = $tree.tree('getSelectedNodes')
+#   _.map nodes, (node) -> node.id
 
-removeSelection = ($tree, ids) ->
-  _.each ids, (id) -> deselectNode($tree, id)
+# deselectAll = ($tree) -> removeSelection($tree, getSelectedIds(domNode))
 
-selectNode = ($tree, id) -> $tree.tree('addToSelection', getNode($tree, id))
+# # toggleSelection = (domNode, ids) -> getTemplate(domNode).selection.toggleSelection(ids)
 
-deselectNode = ($tree, id) -> $tree.tree('removeFromSelection', getNode($tree, id))
+# addSelection = ($tree, ids) ->
+#   _.each ids, (id) -> selectNode($tree, id)
+
+# removeSelection = ($tree, ids) ->
+#   _.each ids, (id) -> deselectNode($tree, id)
+
+selectNode = (domNode, id) ->
+  console.log('selectNode', arguments)
+  addSelection(domNode, [id])
+
+deselectNode = (domNode, id) ->
+  console.log('deselectNode', arguments)
+  removeSelection(domNode, [id])
+
+_selectNode = (domNode, id) ->
+  $tree = getTreeElement(domNode)
+  $tree.tree('addToSelection', getNode($tree, id))
+
+_deselectNode = (domNode, id) ->
+  $tree = getTreeElement(domNode)
+  $tree.tree('removeFromSelection', getNode($tree, id))
+
+isNodeSelected = (domNode, id) ->
+  $tree = getTreeElement(domNode)
+  $tree.tree('isNodeSelected', getNode($tree, id))
+
+handleSelectionEvent = (e, template) ->
+  $tree = template.$tree
+  multiSelect = template.selection.multiSelect
+  selectedNode = e.node
+  deselectedNode = e.deselected_node ? e.previous_node
+  if selectedNode
+    selectNode($tree, selectedNode.id)
+  if deselectedNode
+    deselectNode($tree, deselectedNode.id)
+
+handleClickEvent = (e, template) ->
+  $tree = template.$tree
+  multiSelect = template.selection.multiSelect
+  selectedNode = e.node
+  deselectedNode = e.deselected_node ? e.previous_node
+  selectedId = selectedNode.id
+  if multiSelect
+    # Disable single selection.
+    e.preventDefault()
+    if isNodeSelected($tree, selectedId)
+      deselectNode($tree, selectedId)
+    else
+      selectNode($tree, selectedId)
 
 ####################################################################################################
 # AUXILIARY
@@ -189,7 +244,9 @@ getTemplate = (domNode) ->
       throw new Error('No domNode provided')
 
 getTreeElement = (domNode) ->
-  template = Templates.getNamedInstance(templateName, Blaze.getView(domNode))
+  domNode = $(domNode)[0]
+  startTemplate = Blaze.getView(domNode)?.templateInstance()
+  template = Templates.getNamedInstance(templateName, startTemplate)
   unless template
     throw new Error('No template could be found.')
   template.$tree
@@ -303,4 +360,6 @@ _.extend(TemplateClass, {
   deselectAll: deselectAll
   addSelection: addSelection
   removeSelection: removeSelection
+  isNodeSelected: isNodeSelected
+  # getReactiveSelection: getReactiveSelection
 })

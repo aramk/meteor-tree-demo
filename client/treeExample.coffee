@@ -1,7 +1,7 @@
 TemplateClass = Template.treeExample
 
 # Create a temporary collection we can modify on the client without effects on the server.
-collection = Collections.createTemporary()
+window.collection = collection = Collections.createTemporary()
 Meteor.startup ->
   Collections.copy(Locations, collection)
 
@@ -47,6 +47,8 @@ loadTrees = ->
 
   tree4Template = null
   delay = 1000
+  reactiveSelectionHandle = null
+
   runTestData = ->
     window.$tree4 = $tree4 = @$('#tree4')
     if tree4Template
@@ -55,7 +57,13 @@ loadTrees = ->
       items: collection.find()
       settings:
         autoExpand: true
+        multiSelect: true
     tree4Template = Blaze.renderWithData(Template.tree, data, $tree4[0])
+    $tree = $('.tree', $tree4)
+    reactiveSelectionHandle = Tracker.autorun ->
+      selectedIds = Template.tree.getSelectedIds($tree)
+      # selectedIds = selection.get()
+      console.log('selectedIds', selectedIds)
 
     # Updating the data should update the tree.
     _.delay(
@@ -68,10 +76,10 @@ loadTrees = ->
                   ->
                     au = collection.findOne({name: 'Australia'})
                     collection.update result1, {name: 'New Zealand!', parent: au._id}, (err, result3) ->
-                      $tree = $('.tree', $tree4)
                       Template.tree.expandNode($tree, result1)
-                      Template.tree.selectNode($tree, result1)
-                      Template.tree.selectNode($tree, result2)
+                      # Template.tree.selectNode($tree, result1)
+                      # Template.tree.selectNode($tree, result2)
+                      Template.tree.setSelectedIds($tree, [result1, result2])
                       _.delay(
                         ->
                           Template.tree.deselectNode($tree, result1)
@@ -91,7 +99,7 @@ loadTrees = ->
 
   # Runs tests to show reactive changes.
   runTestData()
-  setInterval runTestData, delay * 6
+  # setInterval runTestData, delay * 6
 
   # window.go = ->
   #   runTestData()
