@@ -18,7 +18,8 @@ if Meteor.isServer
   locations =
     'Australia':
       'Victoria':
-        'Melbourne': {}
+        'Melbourne':
+          'City': {}
         'Geelong': {}
       'New South Wales':
         'Sydney': {}

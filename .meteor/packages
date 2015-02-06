@@ -6,8 +6,10 @@
 
 meteor-platform
 coffeescript
+less
 reactive-var
 
 aldeed:collection2
 aramk:utility
-aramk:jqtree
+aramk:tree
+nooitaf:semantic-ui@1.7.3

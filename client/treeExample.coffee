@@ -7,44 +7,6 @@ Meteor.startup ->
 
 loadTrees = ->
 
-  data1 = [
-    {
-      id: 'abc',
-      label: 'node1',
-      children: [
-        { label: 'child1' },
-        { label: 'child2' }
-      ]
-    },
-    {
-      id: 'def',
-      label: 'node2',
-      children: [
-        { label: 'child3' }
-      ]
-    }
-  ]
-  $tree1 = window.$tree1 = @$('#tree1').tree(data: data1)
-
-  _.delay(
-    ->
-      node = $tree1.tree('getNodeById', 'abc')
-      $tree1.tree('updateNode', node, {label: 'node1 - updated'})
-
-      # $tree1.tree('loadData', [
-      #   {
-      #     id: 1,
-      #     label: 'node1 - updated'
-      #   }
-      # ])
-    1000
-  )
-
-  # window.$tree3 = @$('#tree3 .tree')
-
-  # data2 = Template.tree.createData(collection)
-  # @$('#tree2').tree(data: data2)
-
   tree4Template = null
   delay = 1000
   reactiveSelectionHandle = null
@@ -60,13 +22,13 @@ loadTrees = ->
         multiSelect: true
         selectable: true
         checkboxes: true
-    tree4Template = Blaze.renderWithData(Template.tree, data, $tree4[0])
+    # tree4Template = Blaze.renderWithData(Template.tree, data, $tree4[0])
+    tree4Template = Blaze.renderWithData(Template.crudTree, data, $tree4[0])
     $tree = $('.tree', $tree4)
 
     # Listen to selections and checks.
     reactiveSelectionHandle = Tracker.autorun ->
       selectedIds = Template.tree.getSelectedIds($tree)
-      # selectedIds = selection.get()
       console.log('selectedIds', selectedIds)
 
     $tree.on 'check', (e, args) ->
@@ -107,10 +69,6 @@ loadTrees = ->
   # Runs tests to show reactive changes.
   runTestData()
   # setInterval runTestData, delay * 6
-
-  # window.go = ->
-  #   runTestData()
-  #   setInterval runTestData, 15000
 
 TemplateClass.rendered = ->
   # Delay loading so errors appear in the console.
