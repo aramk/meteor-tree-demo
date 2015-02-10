@@ -35,6 +35,9 @@ loadTrees = ->
       selectedIds = Template.tree.getSelectedIds($tree)
       console.log('selectedIds', selectedIds)
 
+    $tree.on 'select', (e, args) ->
+      console.log('select', args)
+
     $tree.on 'check', (e, args) ->
       console.log('check', args)
 
@@ -53,6 +56,7 @@ loadTrees = ->
                       # Template.tree.selectNode($tree, result1)
                       # Template.tree.selectNode($tree, result2)
                       Template.tree.setSelectedIds($tree, [result1, result2])
+                      Template.tree.setCheckedIds($tree, [result1, result2])
                       _.delay(
                         ->
                           Template.tree.deselectNode($tree, result1)
