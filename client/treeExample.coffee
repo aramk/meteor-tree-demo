@@ -2,8 +2,6 @@ TemplateClass = Template.treeExample
 
 # Create a temporary collection we can modify on the client without effects on the server.
 window.collection = collection = Collections.createTemporary()
-Meteor.startup ->
-  Collections.copy(Locations, collection)
 
 loadTrees = ->
 
@@ -12,6 +10,10 @@ loadTrees = ->
   reactiveSelectionHandle = null
 
   window.runTestData = runTestData = ->
+    console.log('Refresh tree')
+    Collections.removeAllDocs(collection)
+    Collections.copy(Locations, collection)
+
     window.$tree4 = $tree4 = @$('#tree4')
     if tree4Template
       Blaze.remove(tree4Template)
@@ -31,7 +33,7 @@ loadTrees = ->
     $tree = $('.tree', $tree4)
 
     # Listen to selections and checks.
-    reactiveSelectionHandle = Tracker.autorun ->
+    reactiveSelectionHandle = tree4Template.autorun ->
       selectedIds = Template.tree.getSelectedIds($tree)
       console.log('selectedIds', selectedIds)
 
@@ -41,22 +43,29 @@ loadTrees = ->
     $tree.on 'check', (e, args) ->
       console.log('check', args)
 
+    au = collection.findOne({name: 'Australia'})
+    nsw = collection.findOne({name: 'New South Wales'})
+
     # Updating the data should update the tree.
     _.delay(
       ->
         collection.insert {name: 'New Zealand'}, (err, result1) ->
           _.delay(
             ->
+              Template.tree.checkNode($tree, nsw._id)
+              Template.tree.selectNode($tree, nsw._id)
               collection.insert {name: 'Auckland', parent: result1}, (err, result2) ->
                 _.delay(
                   ->
-                    au = collection.findOne({name: 'Australia'})
+                    console.log('Updating doc')
                     collection.update result1, {name: 'New Zealand!', parent: au._id}, (err, result3) ->
-                      Template.tree.expandNode($tree, result1)
-                      # Template.tree.selectNode($tree, result1)
-                      # Template.tree.selectNode($tree, result2)
-                      Template.tree.setSelectedIds($tree, [result1, result2])
-                      Template.tree.setCheckedIds($tree, [result1, result2])
+                      # Template.tree.expandNode($tree, result1)
+                      Template.tree.selectNode($tree, result1)
+                      Template.tree.selectNode($tree, result2)
+                      Template.tree.checkNode($tree, result1)
+                      Template.tree.checkNode($tree, result2)
+                      # Template.tree.setSelectedIds($tree, [result1, result2])
+                      # Template.tree.setCheckedIds($tree, [result1, result2])
                       _.delay(
                         ->
                           Template.tree.deselectNode($tree, result1)
@@ -76,7 +85,7 @@ loadTrees = ->
 
   # Runs tests to show reactive changes.
   runTestData()
-  # setInterval runTestData, delay * 6
+  setInterval runTestData, delay * 6
 
 TemplateClass.rendered = ->
   # Delay loading so errors appear in the console.
