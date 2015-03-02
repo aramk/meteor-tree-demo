@@ -85,7 +85,7 @@ loadTrees = ->
 
   # Runs tests to show reactive changes.
   runTestData()
-  setInterval runTestData, delay * 6
+  # setInterval runTestData, delay * 6
 
 TemplateClass.rendered = ->
   # Delay loading so errors appear in the console.
