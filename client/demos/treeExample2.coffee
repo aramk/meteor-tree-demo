@@ -64,7 +64,7 @@ loadTrees = ->
     # )
 
   # Runs tests to show reactive changes.
-  # runTestData()
+  runTestData()
   # setInterval runTestData, delay * 6
 
 TemplateClass.rendered = ->

@@ -5,7 +5,7 @@ window.collection = collection = Collections.createTemporary()
 
 loadTrees = ->
 
-  tree4Template = null
+  treeTemplate = null
   delay = 1000
   reactiveSelectionHandle = null
 
@@ -14,9 +14,9 @@ loadTrees = ->
     Collections.removeAllDocs(collection)
     Collections.copy(Locations, collection)
 
-    window.$tree4 = $tree4 = @$('#tree4')
-    if tree4Template
-      Blaze.remove(tree4Template)
+    window.$tree = $tree = @$('#tree')
+    if treeTemplate
+      Blaze.remove(treeTemplate)
     data =
       items: collection.find()
       settings:
@@ -28,12 +28,12 @@ loadTrees = ->
         onEdit: -> console.log('onEdit', arguments)
         # onDelete: -> console.log('onDelete', arguments)
 
-    # tree4Template = Blaze.renderWithData(Template.tree, data, $tree4[0])
-    tree4Template = Blaze.renderWithData(Template.crudTree, data, $tree4[0])
-    $tree = $('.tree', $tree4)
+    # treeTemplate = Blaze.renderWithData(Template.tree, data, $tree[0])
+    treeTemplate = Blaze.renderWithData(Template.crudTree, data, $tree[0])
+    $tree = $('.tree', $tree)
 
     # Listen to selections and checks.
-    reactiveSelectionHandle = tree4Template.autorun ->
+    reactiveSelectionHandle = treeTemplate.autorun ->
       selectedIds = Template.tree.getSelectedIds($tree)
       console.log('selectedIds', selectedIds)
 
